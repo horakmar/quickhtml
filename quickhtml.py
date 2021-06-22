@@ -1,16 +1,31 @@
 #!/usr/bin/python
-import sys, os
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-from psycopg2 import connect
+# vim:fileencoding=utf-8:tabstop=4:shiftwidth=4:expandtab
 
+############################################
+#  Generate HTML results from Jinja2 template
+#
+#  Author: Martin Horak
+#  Version: 1.0
+#  Date: 22. 6. 2021
+#
+############################################
+import argparse
+import pathlib
+import sys, os, time
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+## Constants ## ==========================
+############### ==========================
 # Translate national characters to ASCII for file names.
 tr1 = 'áčďéěíňóřšťůúýžľĺÁČĎÉĚÍŇÓŘŠŤŮÚÝŽĽĹ'
 tr2 = 'acdeeinorstuuyzllacdeeinorstuuyzll'
-
 trans = str.maketrans(tr1, tr2)
 
 
+## Functions ## ============================
+############### ============================
 def timefmt(milisecs):
+    '''Format time in MS to [H]:MM:SS'''
     if milisecs == None:
         return '--'
     secs = int(milisecs / 1000)
@@ -25,79 +40,128 @@ def timefmt(milisecs):
     out += f'{secs:02}'
     return out
 
+## Main ## =================================
+########## =================================
+def main():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("event", help="Event - name of DB schema (psql) or filename (sqlite)")
+
+    parser.add_argument("--sql-driver", help="SQL database to connect (psql|sqlite) [psql]", default="psql", choices=['psql', 'sqlite'])
+    parser.add_argument("-s", "--sql-server", help="Server to connect [localhost]", default="localhost")
+    parser.add_argument("--sql-port", help="TCP port to connect [5432]", type=int, default=5432)
+
+    parser.add_argument("-u", "--user", help="User for DB connection [quickevent]", default="quickevent")
+    parser.add_argument("-p", "--password", help="Password for DB connection [None]")
+
+    parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
+    parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=1)
+
+    parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
+    parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
+    parser.add_argument("--classes-like", help='SQL LIKE expression to filter classes, e.g., --classes-like "M%%"')
+    parser.add_argument("--classes-not-like", help='SQL LIKE expression to filter OUT classes, e.g., --classes-not-like "HDR"')
+
+    parser.add_argument("-v", "--verbose", help="More information", action="count", default=1)
+    parser.add_argument("-q", "--quiet", help="Less information", action="count", default=0)
+
+    args = parser.parse_args()
+    args.verbose -= args.quiet
+    stage = args.stage
+    outdir = args.html_dir
 # Connect to database
-try:
-    dbcon = connect(host="localhost", database="quickevent", user="quickevent", password="OstSud2021")
-except OperationalError:
-    print("Cannot connect to database.")
-    sys.exit(1)
+    try:
+        if args.sql_driver == "psql":
+            from psycopg2 import connect
+            dbcon = connect(host=args.sql_server, database=args.sql_database, user=args.user, password=args.password)
+            is_bigdb = True
+            placeholder = "%s"
+        else:
+            from sqlite3 import connect
+            dbcon = connect(database=args.event)
+            is_bigdb = False
+            placeholder = "?"
 
+    except OperationalError:
+        print("Cannot connect to database.")
+        sys.exit(1)
 
-eventid = 'mtbo_long'
-stage = 1
-outdir = '/var/www/html/results'
+    try:
+        if not os.path.exists(args.html_dir):
+            os.makedirs(args.html_dir)
+    except OSError:
+        print(f"Cannot create output directory ({args.html_dir})")
+        sys.exit(1)
 
-try:
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-except OSError:
-    print(f"Cannot create output directory ({outdir})")
-    sys.exit(1)
+    cur = dbcon.cursor()
 
-cur = dbcon.cursor()
+    if is_bigdb:
+        cur.execute("SET SCHEMA %s", (args.event,))
 
-cur.execute("SET SCHEMA %s", (eventid,))
+# Main loop
+    while True:
 # Read event data
-cur.execute("SELECT ckey, cvalue FROM config WHERE ckey LIKE 'event.%'")
-event = {}
-for i in cur:
-    (_, field) = i[0].split('.', 2)
-    event[field] = i[1]
+        cur.execute("SELECT ckey, cvalue FROM config WHERE ckey LIKE 'event.%'")
+        event = {}
+        for i in cur:
+            (_, field) = i[0].split('.', 2)
+            event[field] = i[1]
 
 # Read classes list
-cur.execute("SELECT classes.id, name FROM classes INNER JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId=%s) ORDER BY name", (stage,))
-classes = []
-for i in cur:
-    classes.append({'id': i[0], 'name': i[1], 'ascii': i[1].translate(trans).lower()})
+        cur.execute(f"SELECT classes.id, name FROM classes INNER JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={placeholder}) ORDER BY name", (stage,))
+        classes = []
+        for i in cur:
+            classes.append({'id': i[0], 'name': i[1], 'ascii': i[1].translate(trans).lower()})
 
-env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
-tmpl_index = env.get_template("index.html")
+        env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
+        tmpl_index = env.get_template("index.html")
 
-tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
+        tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
 
-for cls in classes:
-    cur.execute("SELECT classes.name, courses.length, courses.climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId=%s) INNER JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id=%s)", (stage, cls['id']))
-    r = cur.fetchone()
-    cls['length'] = r[1]
-    cls['climb'] = r[2]
+        for cls in classes:
+            cur.execute(f"SELECT classes.name, courses.length, courses.climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={placeholder}) INNER JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id={placeholder})", (stage, cls['id']))
+            r = cur.fetchone()
+            cls['length'] = r[1]
+            cls['climb'] = r[2]
 
-    cur.execute("SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId=%s AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId=%s) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
+            cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={placeholder} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={placeholder}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
 
-    results = []
-    for i in cur:
+            results = []
+            for i in cur:
 
-        results.append({
-            'registration': i[0],
-            'lastname': i[1],
-            'firstname': i[2],
-            'fullname': i[3],
-            'siid': i[4],
-            'leg': i[5],
-            'relayid': i[6],
-            'checktime': timefmt(i[7]),
-            'starttime': timefmt(i[8]),
-            'finishtime': timefmt(i[9]),
-            'penaltytime': timefmt(i[10]),
-            'time': timefmt(i[11]),
-            'notcompeting': i[12],
-            'disq': i[13],
-            'mispunch': i[14],
-            'badcheck': i[15]
-        })
+                results.append({
+                    'registration': i[0],
+                    'lastname': i[1],
+                    'firstname': i[2],
+                    'fullname': i[3],
+                    'siid': i[4],
+                    'leg': i[5],
+                    'relayid': i[6],
+                    'checktime': timefmt(i[7]),
+                    'starttime': timefmt(i[8]),
+                    'finishtime': timefmt(i[9]),
+                    'penaltytime': timefmt(i[10]),
+                    'time': timefmt(i[11]),
+                    'notcompeting': i[12],
+                    'disq': i[13],
+                    'mispunch': i[14],
+                    'badcheck': i[15]
+                })
 
-    filename = cls['ascii']
-    tmpl_class = env.get_template("class.html")
-    tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'results': results}).dump(f'{outdir}/{filename}.html')
+            filename = cls['ascii']
+            tmpl_class = env.get_template("class.html")
+            tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'results': results, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/{filename}.html')
+        print("Generated.")
+        time.sleep(args.refresh_interval)
+## Main end =================================
+
+## Main run =================================
+########### =================================
+if __name__ == '__main__':
+    main()
+
+## End of program # =========================
+################### =========================
 
 # SELECT classes.name AS classes__name, courses.length AS courses__length, courses.climb AS courses__climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId=1) LEFT JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id=124208)
 

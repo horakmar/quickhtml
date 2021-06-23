@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Etapa E{{ stage }}</title>
+  <title>Výsledky E{{ stage }}</title>
   <style type="text/css">
     body {font-family: sans-serif}
     h1, h2, h3, h4, h5 {
@@ -38,21 +38,12 @@
   </style>
 </head>
 <body>
-  <h1>Etapa E{{ stage }}</h1>
+  <h1>Výsledky E{{ stage }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
-  <hr>
-  <h2>Výsledky</h2>
   <p>
 {%- for cls in classes %}
-<a href="results/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
-{%- endfor %}  
-  </p>
-  <hr>
-  <h2>Startovky</h2>
-  <p>
-{%- for cls in classes %}
-<a href="startlists/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
+<a href="{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
 {%- endfor %}  
   </p>
 </body>

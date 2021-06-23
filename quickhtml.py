@@ -57,6 +57,8 @@ def main():
     parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
     parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=1)
 
+    parser.add_argument("-c", "--category", help="Output category (results|startlists|all) [results]", default="results", choices=['results', 'startlists', 'all', 'r', 's', 'a'])
+
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
     parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
     parser.add_argument("--classes-like", help='SQL LIKE expression to filter classes, e.g., --classes-like "M%%"')
@@ -69,6 +71,12 @@ def main():
     args.verbose -= args.quiet
     stage = args.stage
     outdir = args.html_dir
+    if args.category in ('all', 'a'):
+        output = ('s', 'r')
+    elif args.category in ('results', 'r'):
+        output = ('r',)
+    else:
+        output = ('s',)
 # Connect to database
     try:
         if args.sql_driver == "psql":
@@ -87,10 +95,11 @@ def main():
         sys.exit(1)
 
     try:
-        if not os.path.exists(args.html_dir):
-            os.makedirs(args.html_dir)
+        args.html_dir.mkdir(exist_ok=True)
+        args.html_dir.joinpath('results').mkdir(exist_ok=True)
+        args.html_dir.joinpath('startlists').mkdir(exist_ok=True)
     except OSError:
-        print(f"Cannot create output directory ({args.html_dir})")
+        print(f"Cannot create output directories ({args.html_dir})")
         sys.exit(1)
 
     cur = dbcon.cursor()
@@ -114,9 +123,16 @@ def main():
             classes.append({'id': i[0], 'name': i[1], 'ascii': i[1].translate(trans).lower()})
 
         env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
-        tmpl_index = env.get_template("index.html")
 
+        tmpl_index = env.get_template("index.html")
         tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
+
+        if 'r' in output:
+            tmpl_index = env.get_template("results/index.html")
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/results/index.html')
+        if 's' in output:
+            tmpl_index = env.get_template("startlists/index.html")
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/startlists/index.html')
 
         for cls in classes:
             cur.execute(f"SELECT classes.name, courses.length, courses.climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={placeholder}) INNER JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id={placeholder})", (stage, cls['id']))
@@ -124,12 +140,15 @@ def main():
             cls['length'] = r[1]
             cls['climb'] = r[2]
 
+# Read competitors
             cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={placeholder} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={placeholder}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
 
-            results = []
+            filename = cls['ascii']
+
+            competitors = []
             for i in cur:
 
-                results.append({
+                competitors.append({
                     'registration': i[0],
                     'lastname': i[1],
                     'firstname': i[2],
@@ -148,9 +167,14 @@ def main():
                     'badcheck': i[15]
                 })
 
-            filename = cls['ascii']
-            tmpl_class = env.get_template("class.html")
-            tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'results': results, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/{filename}.html')
+            if 'r' in output:
+                tmpl_class = env.get_template("results/class.html")
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/results/{filename}.html')
+
+            if 's' in output:
+                tmpl_class = env.get_template("startlists/class.html")
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/startlists/{filename}.html')
+
         print("Generated.")
         time.sleep(args.refresh_interval)
 ## Main end =================================

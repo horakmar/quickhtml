@@ -12,8 +12,8 @@
       clear: left;
     }
     h1 {font-size: 220%; font-weight: bold;}
-    h2 {font-size: 150%; font-weight: bold; border-bottom: 1px  dotted #666 ;}
-    h3 {font-size: 120%;  }
+    h2 {font-size: 150%; font-weight: bold;}
+    h3 {font-size: 120%;}
     .text {text-align:left}
     .code {background-color: lightgray; text-align:left}
 
@@ -52,8 +52,12 @@
   <h2>Startovky</h2>
   <p>
 {%- for cls in classes %}
-<a href="startlists/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
+<a href="starts/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
 {%- endfor %}  
+  </p>
+  <hr>
+  <p>
+    <a href="../index.html">Hlavní strana</a>
   </p>
 </body>
 </html>

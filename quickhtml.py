@@ -12,6 +12,7 @@
 import argparse
 import pathlib
 import sys, os, time
+from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 ## Constants ## ==========================
@@ -175,10 +176,14 @@ def main():
                     })
 
                 tmpl_class = env.get_template("results/class.html")
-                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/results/{filename}.html')
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'curtime': datetime.now()}).dump(f'{outdir}/results/{filename}.html')
 
 # Read startlists
             if 's' in mode:
+                cur.execute(f"SELECT startdatetime FROM stages WHERE (id={placeholder})", (stage, ))
+
+                start_dt = cur.fetchone()[0]
+
                 cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.starttimems, runs.notcompeting FROM competitors JOIN runs ON runs.competitorId=competitors.id AND runs.stageId={placeholder} WHERE (competitors.classId={placeholder}) ORDER BY runs.starttimems, fullName", (stage, cls['id']))
 
                 filename = cls['ascii']
@@ -198,7 +203,7 @@ def main():
                         'notcompeting': i[8],
                     })
                 tmpl_class = env.get_template("startlists/class.html")
-                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/starts/{filename}.html')
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'start_dt': start_dt, 'curtime': datetime.now()}).dump(f'{outdir}/starts/{filename}.html')
 
         print("Generated.")
         if args.refresh_interval == 0:

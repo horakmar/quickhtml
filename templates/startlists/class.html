@@ -46,14 +46,15 @@
   <h1>Startovka E{{ stage }} {{ cls.name }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
+  <b>Start 00:</b> {{ start_dt.strftime('%d. %m. %Y, %H:%M') }}
+  <hr>
 	<p>
 {%- for cls in classes %}
 <a href="{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
 {%- endfor %}  
-	</p>
-	<h3>
-    <b>{{ cls.name }}</b>; délka: {{ cls.length }} m{% if cls.climb > 0 %}, převýšení: {{ cls.climb }} m{% endif %}
-	</h3>
+  </p>
+  <hr>
+  <p><b>{{ cls.name }}</b>; délka: {{ cls.length }} m{% if cls.climb > 0 %}, převýšení: {{ cls.climb }} m{% endif %}</p>
 	<table>
 		<tr>
 			<th>Start</th>
@@ -70,7 +71,7 @@
 		</tr>
 {%- endfor %}
 	</table>
-  <p class="timestamp"><span class="timestamp">Vygenerováno: {{ time }}</span></p>
+  <p class="timestamp"><span class="timestamp">Vygenerováno: {{ curtime.strftime('%d. %m. %Y, %H:%M:%S') }}</span></p>
   <hr>
   <p>
     <a href="../index.html">Zpět</a>

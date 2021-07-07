@@ -25,12 +25,15 @@ trans = str.maketrans(tr1, tr2)
 
 ## Functions ## ============================
 ############### ============================
-def timefmt(milisecs):
+def timefmt(milisecs, show_hours=False):
     '''Format time in MS to [H]:MM:SS'''
     if milisecs == None:
         return '--'
     secs = int(milisecs / 1000)
-    hours = secs // 3600
+    if show_hours:
+        hours = secs // 3600
+    else:
+        hours = 0
     mins = (secs - hours * 3600) // 60
     secs = secs % 60
     if hours > 0:
@@ -63,8 +66,8 @@ def main():
 
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
     parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
-    parser.add_argument("--classes-like", help='SQL LIKE expression to filter classes, e.g., --classes-like "M%%"')
-    parser.add_argument("--classes-not-like", help='SQL LIKE expression to filter OUT classes, e.g., --classes-not-like "HDR"')
+
+    parser.add_argument("-H", "--show-no-hours", help="Format results as MMM:SS [default H:MM:SS]", action='store_true')
 
     parser.add_argument("-v", "--verbose", help="More information", action="count", default=1)
     parser.add_argument("-q", "--quiet", help="Less information", action="count", default=0)
@@ -75,6 +78,8 @@ def main():
     outdir = args.html_dir.joinpath(f'E{stage}')
     mode = []
     main_index = args.main_index
+    show_hours = not args.show_no_hours
+
     if args.mode in ('all', 'a'):
         mode.append('s')
         mode.append('r')
@@ -110,6 +115,11 @@ def main():
     cur = dbcon.cursor()
 
     if is_bigdb:
+        cur.execute(f"SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname={placeholder}",
+                    (args.event,))
+        if cur.fetchone()[0] != 1:
+            print(f"Schema {args.event} doesn't exist.")
+            sys.exit(1)
         cur.execute("SET SCHEMA %s", (args.event,))
 
 # Main loop
@@ -164,11 +174,11 @@ def main():
                         'siid': i[4],
                         'leg': i[5],
                         'relayid': i[6],
-                        'checktime': timefmt(i[7]),
-                        'starttime': timefmt(i[8]),
-                        'finishtime': timefmt(i[9]),
-                        'penaltytime': timefmt(i[10]),
-                        'time': timefmt(i[11]),
+                        'checktime': timefmt(i[7], show_hours),
+                        'starttime': timefmt(i[8], show_hours),
+                        'finishtime': timefmt(i[9], show_hours),
+                        'penaltytime': timefmt(i[10], show_hours),
+                        'time': timefmt(i[11], show_hours),
                         'notcompeting': i[12],
                         'disq': i[13],
                         'mispunch': i[14],
@@ -199,7 +209,7 @@ def main():
                         'siid': i[4],
                         'leg': i[5],
                         'relayid': i[6],
-                        'starttime': timefmt(i[7]),
+                        'starttime': timefmt(i[7], show_hours),
                         'notcompeting': i[8],
                     })
                 tmpl_class = env.get_template("startlists/class.html")

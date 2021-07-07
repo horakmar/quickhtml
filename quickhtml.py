@@ -47,6 +47,9 @@ def timefmt(milisecs, show_hours=False):
 ## Main ## =================================
 ########## =================================
 def main():
+
+    modes = ['r', 's', 't', 'a']
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument("event", help="Event - name of DB schema (psql) or filename (sqlite)")
@@ -61,7 +64,7 @@ def main():
     parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
     parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=1)
 
-    parser.add_argument("-m", "--mode", help="Output mode (results|startlists|all) [all]", default="all", choices=['results', 'startlists', 'starts', 'all', 'r', 's', 'a'])
+    parser.add_argument("-m", "--mode", help="Output mode (results|starts|total)", choices=modes, action='append')
     parser.add_argument("--main-index", help="Create main index file [Automatically on in 'all' mode]", action='store_true')
 
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
@@ -79,27 +82,28 @@ def main():
     mode = []
     main_index = args.main_index
     show_hours = not args.show_no_hours
-
-    if args.mode in ('all', 'a'):
+    if args.mode == None or 'a' in args.mode:
         mode.append('s')
         mode.append('r')
         main_index = True
-    if args.mode in ('results', 'r'):
-        mode.append('r')
-    if args.mode in ('startlists', 'starts', 's'):
-        mode.append('s')
+        if 'a' in args.mode:
+            mode.append('t')
+    else:
+        mode = args.mode
+
+
 # Connect to database
     try:
         if args.sql_driver == "psql":
             from psycopg2 import connect
             dbcon = connect(host=args.sql_server, database=args.sql_database, user=args.user, password=args.password)
             is_bigdb = True
-            placeholder = "%s"
+            plc = "%s"
         else:
             from sqlite3 import connect
             dbcon = connect(database=args.event)
             is_bigdb = False
-            placeholder = "?"
+            plc = "?"
 
     except OperationalError:
         print("Cannot connect to database.")
@@ -115,7 +119,7 @@ def main():
     cur = dbcon.cursor()
 
     if is_bigdb:
-        cur.execute(f"SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname={placeholder}",
+        cur.execute(f"SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname={plc}",
                     (args.event,))
         if cur.fetchone()[0] != 1:
             print(f"Schema {args.event} doesn't exist.")
@@ -132,7 +136,7 @@ def main():
             event[field] = i[1]
 
 # Read classes list
-        cur.execute(f"SELECT classes.id, name FROM classes INNER JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={placeholder}) ORDER BY name", (stage,))
+        cur.execute(f"SELECT classes.id, name FROM classes INNER JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={plc}) ORDER BY name", (stage,))
         classes = []
         for i in cur:
             classes.append({'id': i[0], 'name': i[1], 'ascii': i[1].translate(trans).lower()})
@@ -144,6 +148,7 @@ def main():
             tmpl_index = env.get_template("index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
 
+# Generate separate index files
         if 'r' in mode:
             tmpl_index = env.get_template("results/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/results/index.html')
@@ -151,15 +156,76 @@ def main():
             tmpl_index = env.get_template("startlists/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/starts/index.html')
 
+# Classes loop
         for cls in classes:
-            cur.execute(f"SELECT classes.name, courses.length, courses.climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={placeholder}) INNER JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id={placeholder})", (stage, cls['id']))
+            cur.execute(f"SELECT classes.name, courses.length, courses.climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={plc}) INNER JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id={plc})", (stage, cls['id']))
             r = cur.fetchone()
             cls['length'] = r[1]
             cls['climb'] = r[2]
 
+# Count total results
+            if 't' in mode:
+# Read competitors
+                cur.execute(f"""
+SELECT
+  id, registration,
+  COALESCE(lastName, '') || ' ' || COALESCE(firstName, '') AS fullName
+FROM competitors
+WHERE
+  classid = {plc}
+ORDER BY id
+                            """, (cls['id'], ))
+                comps = {}
+                totals = {}
+                for i in cur:
+                    comps[i[0]] = [i[1], i[2]]
+                    totals[i[0]] = [i[0],0]
+
+
+                for stg in range(1, stage+1):
+                    cur.execute(f"""
+SELECT
+  comp.id,
+  e.timems,
+  e.notcompeting, e.isrunning, e.disqualified
+FROM
+  competitors AS comp,
+  runs as e
+WHERE
+  comp.classid = {plc} AND
+  comp.id = e.competitorid AND
+  e.stageid = {plc}
+ORDER BY
+  e.notcompeting, e.isrunning, e.disqualified, e.timems, comp.id
+                                """, (cls['id'], stg))
+                    rank = 0
+                    for i in cur:
+                        rank += 1
+                        cid = i[0]
+                        status = []
+                        if i[2]:
+                            status.append('MS')
+                        if not i[3]:
+                            status.append('DNS')
+                        if i[4]:
+                            status.append('DISK')
+
+                        # Add time to total
+                        if i[3] and not i[4] and i[1] != None:
+                            totals[cid][1] += i[1]
+                            totals[cid].append(i[1])
+                            totals[cid].append(rank)
+                        else:
+                            totals[cid].append(', '.join(status))
+                            totals[cid].append('--')
+
+                print(comps)
+                print(totals)
+                sys.exit(9)
+
 # Read results
             if 'r' in mode:
-                cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={placeholder} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={placeholder}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
+                cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={plc} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={plc}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
 
                 filename = cls['ascii']
 
@@ -190,11 +256,11 @@ def main():
 
 # Read startlists
             if 's' in mode:
-                cur.execute(f"SELECT startdatetime FROM stages WHERE (id={placeholder})", (stage, ))
+                cur.execute(f"SELECT startdatetime FROM stages WHERE (id={plc})", (stage, ))
 
                 start_dt = cur.fetchone()[0]
 
-                cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.starttimems, runs.notcompeting FROM competitors JOIN runs ON runs.competitorId=competitors.id AND runs.stageId={placeholder} WHERE (competitors.classId={placeholder}) ORDER BY runs.starttimems, fullName", (stage, cls['id']))
+                cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.starttimems, runs.notcompeting FROM competitors JOIN runs ON runs.competitorId=competitors.id AND runs.stageId={plc} WHERE (competitors.classId={plc}) ORDER BY runs.starttimems, fullName", (stage, cls['id']))
 
                 filename = cls['ascii']
 
@@ -228,6 +294,27 @@ if __name__ == '__main__':
 
 ## End of program # =========================
 ################### =========================
+
+# SELECT comp.registration, COALESCE(comp.lastName, '') || ' ' || COALESCE(comp.firstName, '') AS fullName,
+  # CASE WHEN e1.disqualified THEN NULL ELSE e1.timems END AS t1,
+  # concat_ws(', ', CASE WHEN e1.notcompeting THEN 'MS' END, CASE WHEN NOT e1.isrunning THEN 'DNS' END, CASE WHEN e1.disqualified THEN 'DISK' END) AS e1stat,
+  # CASE WHEN e2.disqualified THEN NULL ELSE e2.timems END AS t2,
+  # concat_ws(', ', CASE WHEN e2.notcompeting THEN 'MS' END, CASE WHEN NOT e2.isrunning THEN 'DNS' END, CASE WHEN e2.disqualified THEN 'DISK' END) AS e2stat,
+  # CASE WHEN e1.disqualified OR e2.disqualified THEN NULL
+  # ELSE e1.timems + e2.timems END
+  # AS total,
+  # e1.notcompeting OR e2.notcompeting AS notcompeting
+# FROM
+  # competitors AS comp,
+  # runs AS e1, runs AS e2
+# WHERE
+  # comp.classid = 131942 AND
+  # e1.competitorid = comp.id AND
+  # e2.competitorid = comp.id AND
+  # e1.stageid=1 AND e2.stageid=2
+# ORDER BY
+  # notcompeting, total
+
 
 # SELECT classes.name AS classes__name, courses.length AS courses__length, courses.climb AS courses__climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId=1) LEFT JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id=124208)
 

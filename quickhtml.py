@@ -12,6 +12,7 @@
 import argparse
 import pathlib
 import sys, os, time
+from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 ## Constants ## ==========================
@@ -57,6 +58,9 @@ def main():
     parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
     parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=1)
 
+    parser.add_argument("-m", "--mode", help="Output mode (results|startlists|all) [all]", default="all", choices=['results', 'startlists', 'starts', 'all', 'r', 's', 'a'])
+    parser.add_argument("--main-index", help="Create main index file [Automatically on in 'all' mode]", action='store_true')
+
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
     parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
     parser.add_argument("--classes-like", help='SQL LIKE expression to filter classes, e.g., --classes-like "M%%"')
@@ -68,7 +72,17 @@ def main():
     args = parser.parse_args()
     args.verbose -= args.quiet
     stage = args.stage
-    outdir = args.html_dir
+    outdir = args.html_dir.joinpath(f'E{stage}')
+    mode = []
+    main_index = args.main_index
+    if args.mode in ('all', 'a'):
+        mode.append('s')
+        mode.append('r')
+        main_index = True
+    if args.mode in ('results', 'r'):
+        mode.append('r')
+    if args.mode in ('startlists', 'starts', 's'):
+        mode.append('s')
 # Connect to database
     try:
         if args.sql_driver == "psql":
@@ -87,10 +101,10 @@ def main():
         sys.exit(1)
 
     try:
-        if not os.path.exists(args.html_dir):
-            os.makedirs(args.html_dir)
+        outdir.joinpath('results').mkdir(parents=True, exist_ok=True)
+        outdir.joinpath('starts').mkdir(parents=True, exist_ok=True)
     except OSError:
-        print(f"Cannot create output directory ({args.html_dir})")
+        print(f"Cannot create output directories ({outdir})")
         sys.exit(1)
 
     cur = dbcon.cursor()
@@ -114,9 +128,18 @@ def main():
             classes.append({'id': i[0], 'name': i[1], 'ascii': i[1].translate(trans).lower()})
 
         env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
-        tmpl_index = env.get_template("index.html")
 
-        tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
+# Generate main index file
+        if main_index:
+            tmpl_index = env.get_template("index.html")
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
+
+        if 'r' in mode:
+            tmpl_index = env.get_template("results/index.html")
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/results/index.html')
+        if 's' in mode:
+            tmpl_index = env.get_template("startlists/index.html")
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/starts/index.html')
 
         for cls in classes:
             cur.execute(f"SELECT classes.name, courses.length, courses.climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={placeholder}) INNER JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id={placeholder})", (stage, cls['id']))
@@ -124,34 +147,67 @@ def main():
             cls['length'] = r[1]
             cls['climb'] = r[2]
 
-            cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={placeholder} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={placeholder}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
+# Read results
+            if 'r' in mode:
+                cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={placeholder} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={placeholder}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
 
-            results = []
-            for i in cur:
+                filename = cls['ascii']
 
-                results.append({
-                    'registration': i[0],
-                    'lastname': i[1],
-                    'firstname': i[2],
-                    'fullname': i[3],
-                    'siid': i[4],
-                    'leg': i[5],
-                    'relayid': i[6],
-                    'checktime': timefmt(i[7]),
-                    'starttime': timefmt(i[8]),
-                    'finishtime': timefmt(i[9]),
-                    'penaltytime': timefmt(i[10]),
-                    'time': timefmt(i[11]),
-                    'notcompeting': i[12],
-                    'disq': i[13],
-                    'mispunch': i[14],
-                    'badcheck': i[15]
-                })
+                competitors = []
+                for i in cur:
 
-            filename = cls['ascii']
-            tmpl_class = env.get_template("class.html")
-            tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'results': results, 'time': time.strftime('%d. %m. %Y, %H:%M:%S')}).dump(f'{outdir}/{filename}.html')
+                    competitors.append({
+                        'registration': i[0],
+                        'lastname': i[1],
+                        'firstname': i[2],
+                        'fullname': i[3],
+                        'siid': i[4],
+                        'leg': i[5],
+                        'relayid': i[6],
+                        'checktime': timefmt(i[7]),
+                        'starttime': timefmt(i[8]),
+                        'finishtime': timefmt(i[9]),
+                        'penaltytime': timefmt(i[10]),
+                        'time': timefmt(i[11]),
+                        'notcompeting': i[12],
+                        'disq': i[13],
+                        'mispunch': i[14],
+                        'badcheck': i[15]
+                    })
+
+                tmpl_class = env.get_template("results/class.html")
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'curtime': datetime.now()}).dump(f'{outdir}/results/{filename}.html')
+
+# Read startlists
+            if 's' in mode:
+                cur.execute(f"SELECT startdatetime FROM stages WHERE (id={placeholder})", (stage, ))
+
+                start_dt = cur.fetchone()[0]
+
+                cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.starttimems, runs.notcompeting FROM competitors JOIN runs ON runs.competitorId=competitors.id AND runs.stageId={placeholder} WHERE (competitors.classId={placeholder}) ORDER BY runs.starttimems, fullName", (stage, cls['id']))
+
+                filename = cls['ascii']
+
+                competitors = []
+                for i in cur:
+
+                    competitors.append({
+                        'registration': i[0],
+                        'lastname': i[1],
+                        'firstname': i[2],
+                        'fullname': i[3],
+                        'siid': i[4],
+                        'leg': i[5],
+                        'relayid': i[6],
+                        'starttime': timefmt(i[7]),
+                        'notcompeting': i[8],
+                    })
+                tmpl_class = env.get_template("startlists/class.html")
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'start_dt': start_dt, 'curtime': datetime.now()}).dump(f'{outdir}/starts/{filename}.html')
+
         print("Generated.")
+        if args.refresh_interval == 0:
+            break
         time.sleep(args.refresh_interval)
 ## Main end =================================
 

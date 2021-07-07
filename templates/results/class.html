@@ -3,17 +3,19 @@
 <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Etapa E{{ stage }}</title>
+  <title>Výsledky E{{ stage }} {{ cls.name }}</title>
   <style type="text/css">
     body {font-family: sans-serif}
     h1, h2, h3, h4, h5 {
       color: #2d2d2d;
-      font-family: sans-serif;
+      //font-family: sans-serif;
+      //font-size: 100%;
+      //font-weight: normal;
       clear: left;
     }
     h1 {font-size: 220%; font-weight: bold;}
-    h2 {font-size: 150%; font-weight: bold;}
-    h3 {font-size: 120%;}
+    h2 {font-size: 150%; font-weight: bold; border-bottom: 1px  dotted #666 ;}
+    h3 {font-size: 120%;  }
     .text {text-align:left}
     .code {background-color: lightgray; text-align:left}
 
@@ -31,33 +33,48 @@
     .bbb { border-bottom: 2px solid black; }
     .blb { border-left: 2px solid black; }
     .brb { border-right: 2px solid black; }
+    p.timestamp { font-size: 80%; padding-top: 1ex; }
+    span.timestamp { background-color: #99ccff }
     table { border: 0px solid gray; border-spacing: 0px 0px;}
     tr.odd { background-color: #e6e6e6; }
     th { padding: 3px; border: 0px; background-color: #8dd35f; }
     td { padding: 3px; border: 0px; }
   </style>
 </head>
+
 <body>
-  <h1>Etapa E{{ stage }}</h1>
+  <h1>Výsledky E{{ stage }} {{ cls.name }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
-  <hr>
-  <h2>Výsledky</h2>
-  <p>
+	<p>
 {%- for cls in classes %}
-<a href="results/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
+<a href="{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
 {%- endfor %}  
-  </p>
+	</p>
+	<h3>
+    <b>{{ cls.name }}</b>; délka: {{ cls.length }} m{% if cls.climb > 0 %}, převýšení: {{ cls.climb }} m{% endif %}
+	</h3>
+	<table>
+		<tr>
+			<th>Poř</th>
+			<th>Jméno</th>
+			<th>Registrace</th>
+			<th>Čas</th>
+			<th>Status</th>
+		</tr>
+{%- for res in competitors %}
+		<tr class="{{ loop.cycle('odd', 'even') }}">
+      <td>{{ loop.index }}</td>
+      <td>{{ res.fullname }}</td>
+      <td>{{ res.registration }}</td>
+      <td align="right">{{ res.time }}</td>
+      <td>{% if res.notcompeting %}MS{% if res.disq %}, DISK{% endif %}{% endif %}{% if res.disq %}DISK{% endif %}</td>
+		</tr>
+{%- endfor %}
+	</table>
+  <p class="timestamp"><span class="timestamp">Vygenerováno: {{ curtime.strftime('%d. %m. %Y, %H:%M:%S') }}</span></p>
   <hr>
-  <h2>Startovky</h2>
   <p>
-{%- for cls in classes %}
-<a href="starts/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
-{%- endfor %}  
+    <a href="../index.html">Zpět</a>
   </p>
-  <hr>
-  <p>
-    <a href="../index.html">Hlavní strana</a>
-  </p>
-</body>
-</html>
+</body></html>

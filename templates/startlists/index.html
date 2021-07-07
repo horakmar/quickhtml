@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Etapa E{{ stage }}</title>
+  <title>Startovky E{{ stage }}</title>
   <style type="text/css">
     body {font-family: sans-serif}
     h1, h2, h3, h4, h5 {
@@ -12,8 +12,8 @@
       clear: left;
     }
     h1 {font-size: 220%; font-weight: bold;}
-    h2 {font-size: 150%; font-weight: bold;}
-    h3 {font-size: 120%;}
+    h2 {font-size: 150%; font-weight: bold; border-bottom: 1px  dotted #666 ;}
+    h3 {font-size: 120%;  }
     .text {text-align:left}
     .code {background-color: lightgray; text-align:left}
 
@@ -38,26 +38,17 @@
   </style>
 </head>
 <body>
-  <h1>Etapa E{{ stage }}</h1>
+  <h1>Startovky E{{ stage }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
-  <hr>
-  <h2>Výsledky</h2>
   <p>
 {%- for cls in classes %}
-<a href="results/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
-{%- endfor %}  
-  </p>
-  <hr>
-  <h2>Startovky</h2>
-  <p>
-{%- for cls in classes %}
-<a href="starts/{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
+<a href="{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
 {%- endfor %}  
   </p>
   <hr>
   <p>
-    <a href="../index.html">Hlavní strana</a>
+    <a href="../index.html">Zpět</a>
   </p>
 </body>
 </html>

@@ -37,7 +37,8 @@
     span.timestamp { background-color: #99ccff }
     table { border: 0px solid gray; border-spacing: 0px 0px; width: 100%;}
     tr.odd { background-color: #e6e6e6; }
-    th { padding: 3px; border: 0px; background-color: #8dd35f; }
+    tr.sep { background-color: #f5da81; }
+    th { padding: 3px; border: 0px; background-color: #8dd35f;}
     td { padding: 3px; border: 0px; }
   </style>
 </head>
@@ -54,22 +55,25 @@
 	<h3>{{ cls.name }}</h3>
 	<table>
 		<tr>
-			<th>Poř</th>
-			<th>Jméno</th>
-			<th>Registrace</th>
+			<th align="left">Poř</th>
+			<th align="left">Jméno</th>
+			<th align="left">Registrace</th>
 			<th align="right">Celkem</th>
 {%- for stg in range(1, event['stageCount'] | int +1) %}
       <th align="right">E{{ stg }}</th>
       <th align="right">&nbsp;</th>
 {%- endfor %}
-			<th>Stat</th>
+			<th align="left">St</th>
 		</tr>
 {%- for res in results %}
+  {%- if loop.changed(res.racestat) and loop.previtem is defined and loop.previtem.racestat == 0 %}
+  <tr class="sep"><td colspan="{{ 5 + event['stageCount'] | int * 2 }}"></td></tr>
+  {%- endif %}
 		<tr class="{{ loop.cycle('odd', 'even') }}">
-      <td>{{ loop.index }}</td>
+      <td>{% if res.racestat == 0 %}{{ loop.index }}{% else %}&nbsp;{% endif %}</td>
       <td>{{ res.fullname }}</td>
       <td>{{ res.registration }}</td>
-      <td align="right">{{ res.totaltime }}</td>
+      <td align="right">{% if res.racestat == 0 %}{{ res.totaltime }}{% else %}&nbsp;{% endif %}</td>
   {%- for stg in range(0, stage) %}
       <td align="right">{{ res.stages[stg].time }}</td>
       <td align="right">{{ res.stages[stg].rank }}</td>

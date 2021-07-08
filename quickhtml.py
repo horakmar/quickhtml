@@ -184,7 +184,7 @@ def main():
 # Count total results
             if 't' in mode:
 # Read competitors
-# totals: { id: [id, reg, name, total_time, still_in_race, aux, [E1_time, E1_status, E1_notcomp, E1_rank], [E2_time, ...]] }
+# totals: { id: [reg, name, total_time, race_stat, notcompeting, [E1_time, E1_status, E1_notcomp, E1_rank], [E2_time, ...]] }
                 cur.execute(f"""
 SELECT
   id, registration,
@@ -196,7 +196,7 @@ ORDER BY id
                             """, (cls['id'], ))
                 totals = {}
                 for i in cur:
-                    totals[i[0]] = [i[1], i[2], 0, True, False, 0]
+                    totals[i[0]] = [i[1], i[2], 0, 0, False]
 
 
                 for stg in range(1, stage+1):
@@ -222,9 +222,9 @@ ORDER BY
                         cid = i[0]
                         status = 0
                         if not i[2]:
-                            status = 1 # DNS
+                            status = 2 # DNS
                         elif i[3]:
-                            status = 2 # DISQ
+                            status = 1 # DISQ
                         elif i[1] == None:
                             status = 3 # DNF
 
@@ -234,25 +234,26 @@ ORDER BY
                         if status == 0:
                             totals[cid][2] += i[1]
                         else:
-                            totals[cid][3] = False
+                            totals[cid][3] += status
                         totals[cid][4] |= i[4]
                         totals[cid].append(stg_res)
 
                 results = []
-                for i in sorted(totals.values(), key=lambda x: (not(x[3]),x[2])):
+                for i in sorted(totals.values(), key=lambda x: (x[4], x[3], x[2])):
                     stages = []
                     for j in range(1, stage+1):
                         rank = '--'
                         time = '--'
-                        if i[j+5][1] == 0:
-                            time = timefmt(i[j+5][0], show_hours)
-                            rank = i[j+5][2]
-                        elif i[j+5][1] == 1:
-                            time = 'NEST'
-                        elif i[j+5][1] == 2:
+                        if i[j+4][1] == 0:
+                            time = timefmt(i[j+4][0], show_hours)
+                            if not i[4]:
+                                rank = i[j+4][2]
+                        elif i[j+4][1] == 1:
                             time = 'DISK'
-                        elif i[j+5][1] == 3:
-                            time = 'NEDK'
+                        elif i[j+4][1] == 2:
+                            time = 'NEST'
+                        elif i[j+4][1] == 3:
+                            time = 'NEDO'
                         stages.append({
                             'time': time,
                             'rank': rank
@@ -262,9 +263,8 @@ ORDER BY
                             'registration': i[0],
                             'fullname': i[1],
                             'totaltime': timefmt(i[2], show_hours),
-                            'inrace': i[3],
+                            'racestat': i[3],
                             'notcompeting': i[4],
-                            'aux': i[5],
                             'stages': stages
                     })
 

@@ -35,11 +35,11 @@
     .brb { border-right: 2px solid black; }
     p.timestamp { font-size: 80%; padding-top: 1ex; }
     span.timestamp { background-color: #99ccff }
-    table { border: 0px solid gray; border-spacing: 0px 0px; width: 100%;}
+    table { border: 1px solid gray; border-collapse: collapse; width: 100%;}
     tr.odd { background-color: #e6e6e6; }
     tr.sep { background-color: #f5da81; }
-    th { padding: 3px; border: 0px; background-color: #8dd35f;}
-    td { padding: 3px; border: 0px; }
+    th { padding: 3px; border: 1px solid gray; background-color: #8dd35f;}
+    td { padding: 3px; border: 1px solid gray; }
   </style>
 </head>
 
@@ -60,8 +60,7 @@
 			<th align="left">Registrace</th>
 			<th align="right">Celkem</th>
 {%- for stg in range(1, event['stageCount'] | int +1) %}
-      <th align="right">E{{ stg }}</th>
-      <th align="right">&nbsp;</th>
+      <th colspan="2" align="center">E{{ stg }}</th>
 {%- endfor %}
 			<th align="left">St</th>
 		</tr>
@@ -89,6 +88,6 @@
   <p class="timestamp"><span class="timestamp">Vygenerováno: {{ curtime.strftime('%d. %m. %Y, %H:%M:%S') }}</span></p>
   <hr>
   <p>
-    <a href="../index.html">Zpět</a>
+    <a href="index.html">Zpět</a>
   </p>
 </body></html>

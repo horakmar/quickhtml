@@ -62,7 +62,7 @@ def main():
     parser.add_argument("-p", "--password", help="Password for DB connection [None]")
 
     parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
-    parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=1)
+    parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=0)
 
     parser.add_argument("-m", "--mode", help="Output mode (results|starts|total)", choices=modes, action='append')
     parser.add_argument("--main-index", help="Create main index file [Automatically on in 'all' mode]", action='store_true')
@@ -77,8 +77,6 @@ def main():
 
     args = parser.parse_args()
     args.verbose -= args.quiet
-    stage = args.stage
-    outdir = args.html_dir.joinpath(f'E{stage}')
     mode = []
     main_index = args.main_index
     show_hours = not args.show_no_hours
@@ -109,13 +107,8 @@ def main():
         print("Cannot connect to database.")
         sys.exit(1)
 
-    try:
-        outdir.joinpath('results').mkdir(parents=True, exist_ok=True)
-        outdir.joinpath('starts').mkdir(parents=True, exist_ok=True)
-    except OSError:
-        print(f"Cannot create output directories ({outdir})")
-        sys.exit(1)
 
+# Initialize DB connection
     cur = dbcon.cursor()
 
     if is_bigdb:
@@ -126,6 +119,19 @@ def main():
             sys.exit(1)
         cur.execute("SET SCHEMA %s", (args.event,))
 
+# Initialize Jinja templates
+    env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
+
+# Create dir for total results
+    if 't' in mode:
+        outdir_total = args.html_dir.joinpath(f'total')
+        try:
+            outdir_total.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            print(f"Cannot create output directories ({outdir})")
+            sys.exit(1)
+
+
 # Main loop
     while True:
 # Read event data
@@ -134,14 +140,23 @@ def main():
         for i in cur:
             (_, field) = i[0].split('.', 2)
             event[field] = i[1]
+        if args.stage > 0:
+            stage = min(args.stage, int(event['stageCount']))
+        else:
+            stage = int(event['currentStageId'])
+        outdir = args.html_dir.joinpath(f'E{stage}')
+        try:
+            outdir.joinpath('results').mkdir(parents=True, exist_ok=True)
+            outdir.joinpath('starts').mkdir(parents=True, exist_ok=True)
+        except OSError:
+            print(f"Cannot create output directories ({outdir})")
+            sys.exit(1)
 
 # Read classes list
         cur.execute(f"SELECT classes.id, name FROM classes INNER JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId={plc}) ORDER BY name", (stage,))
         classes = []
         for i in cur:
             classes.append({'id': i[0], 'name': i[1], 'ascii': i[1].translate(trans).lower()})
-
-        env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
 
 # Generate main index file
         if main_index:
@@ -155,6 +170,9 @@ def main():
         if 's' in mode:
             tmpl_index = env.get_template("startlists/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/starts/index.html')
+        if 't' in mode:
+            tmpl_index = env.get_template("total/index.html")
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_total}/index.html')
 
 # Classes loop
         for cls in classes:
@@ -166,6 +184,7 @@ def main():
 # Count total results
             if 't' in mode:
 # Read competitors
+# totals: { id: [id, reg, name, total_time, still_in_race, aux, [E1_time, E1_status, E1_notcomp, E1_rank], [E2_time, ...]] }
                 cur.execute(f"""
 SELECT
   id, registration,
@@ -175,11 +194,9 @@ WHERE
   classid = {plc}
 ORDER BY id
                             """, (cls['id'], ))
-                comps = {}
                 totals = {}
                 for i in cur:
-                    comps[i[0]] = [i[1], i[2]]
-                    totals[i[0]] = [i[0],0]
+                    totals[i[0]] = [i[1], i[2], 0, True, False, 0]
 
 
                 for stg in range(1, stage+1):
@@ -187,7 +204,7 @@ ORDER BY id
 SELECT
   comp.id,
   e.timems,
-  e.notcompeting, e.isrunning, e.disqualified
+  e.isrunning, e.disqualified, e.notcompeting
 FROM
   competitors AS comp,
   runs as e
@@ -196,38 +213,68 @@ WHERE
   comp.id = e.competitorid AND
   e.stageid = {plc}
 ORDER BY
-  e.notcompeting, e.isrunning, e.disqualified, e.timems, comp.id
+  e.notcompeting, not(e.isrunning), e.disqualified,
+  e.timems
                                 """, (cls['id'], stg))
                     rank = 0
                     for i in cur:
                         rank += 1
                         cid = i[0]
-                        status = []
-                        if i[2]:
-                            status.append('MS')
-                        if not i[3]:
-                            status.append('DNS')
-                        if i[4]:
-                            status.append('DISK')
+                        status = 0
+                        if not i[2]:
+                            status = 1 # DNS
+                        elif i[3]:
+                            status = 2 # DISQ
+                        elif i[1] == None:
+                            status = 3 # DNF
+
+                        stg_res = [i[1], status, rank]
 
                         # Add time to total
-                        if i[3] and not i[4] and i[1] != None:
-                            totals[cid][1] += i[1]
-                            totals[cid].append(i[1])
-                            totals[cid].append(rank)
+                        if status == 0:
+                            totals[cid][2] += i[1]
                         else:
-                            totals[cid].append(', '.join(status))
-                            totals[cid].append('--')
+                            totals[cid][3] = False
+                        totals[cid][4] |= i[4]
+                        totals[cid].append(stg_res)
 
-                print(comps)
-                print(totals)
-                sys.exit(9)
+                results = []
+                for i in sorted(totals.values(), key=lambda x: (not(x[3]),x[2])):
+                    stages = []
+                    for j in range(1, stage+1):
+                        rank = '--'
+                        time = '--'
+                        if i[j+5][1] == 0:
+                            time = timefmt(i[j+5][0], show_hours)
+                            rank = i[j+5][2]
+                        elif i[j+5][1] == 1:
+                            time = 'NEST'
+                        elif i[j+5][1] == 2:
+                            time = 'DISK'
+                        elif i[j+5][1] == 3:
+                            time = 'NEDK'
+                        stages.append({
+                            'time': time,
+                            'rank': rank
+                        })
+
+                    results.append({
+                            'registration': i[0],
+                            'fullname': i[1],
+                            'totaltime': timefmt(i[2], show_hours),
+                            'inrace': i[3],
+                            'notcompeting': i[4],
+                            'aux': i[5],
+                            'stages': stages
+                    })
+
+                filename = cls['ascii']
+                tmpl_class = env.get_template("total/class.html")
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'results': results, 'curtime': datetime.now()}).dump(f'{outdir_total}/{filename}.html')
 
 # Read results
             if 'r' in mode:
                 cur.execute(f"SELECT competitors.registration, competitors.lastName, competitors.firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS fullName, runs.siid, runs.leg, runs.relayid, runs.checktimems, runs.starttimems, runs.finishtimems, runs.penaltytimems, runs.timems, runs.notcompeting, runs.disqualified, runs.mispunch, runs.badcheck FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId={plc} AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId={plc}) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs", (stage, cls['id']))
-
-                filename = cls['ascii']
 
                 competitors = []
                 for i in cur:
@@ -251,6 +298,7 @@ ORDER BY
                         'badcheck': i[15]
                     })
 
+                filename = cls['ascii']
                 tmpl_class = env.get_template("results/class.html")
                 tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'curtime': datetime.now()}).dump(f'{outdir}/results/{filename}.html')
 

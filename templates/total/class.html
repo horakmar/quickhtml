@@ -3,7 +3,7 @@
 <head>
   <meta http-equiv="content-type" content="text/html; charset=utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Celkové výsledky</title>
+  <title>Celkové výsledky {{ cls.name }}</title>
   <style type="text/css">
     body {font-family: sans-serif}
     h1, h2, h3, h4, h5 {
@@ -35,7 +35,7 @@
     .brb { border-right: 2px solid black; }
     p.timestamp { font-size: 80%; padding-top: 1ex; }
     span.timestamp { background-color: #99ccff }
-    table { border: 0px solid gray; border-spacing: 0px 0px;}
+    table { border: 0px solid gray; border-spacing: 0px 0px; width: 100%;}
     tr.odd { background-color: #e6e6e6; }
     th { padding: 3px; border: 0px; background-color: #8dd35f; }
     td { padding: 3px; border: 0px; }
@@ -43,38 +43,48 @@
 </head>
 
 <body>
-  <h1>Celkové výsledky</h1>
+  <h1>Celkové výsledky {{ cls.name }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
+	<p>
 {%- for cls in classes %}
-  <hr>
-  <h1>Kategorie {{ cls.name }}</h1>
+<a href="{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
+{%- endfor %}  
+	</p>
+	<h3>{{ cls.name }}</h3>
 	<table>
 		<tr>
 			<th>Poř</th>
 			<th>Jméno</th>
 			<th>Registrace</th>
 			<th align="right">Celkem</th>
-			<th align="right">E1</th>
-			<th align="right">E2</th>
-      <th align="right">E3</th>
-      <th align="right">E4</th>
-			<th>Status</th>
+{%- for stg in range(1, event['stageCount'] | int +1) %}
+      <th align="right">E{{ stg }}</th>
+      <th align="right">&nbsp;</th>
+{%- endfor %}
+			<th>Stat</th>
 		</tr>
-  {%- for res in results[cls.id] %}
+{%- for res in results %}
 		<tr class="{{ loop.cycle('odd', 'even') }}">
       <td>{{ loop.index }}</td>
       <td>{{ res.fullname }}</td>
       <td>{{ res.registration }}</td>
-      <td align="right">{{ res.total }}</td>
-      <td align="right">{{ res.e1 }}</td>
-      <td align="right">{{ res.e2 }}</td>
-      <td align="right">{{ res.e3 }}</td>
-      <td align="right">{{ res.e4 }}</td>
-      <td>{% if res.notcompeting %}MS{% endif %}</td>
-		</tr>
+      <td align="right">{{ res.totaltime }}</td>
+  {%- for stg in range(0, stage) %}
+      <td align="right">{{ res.stages[stg].time }}</td>
+      <td align="right">{{ res.stages[stg].rank }}</td>
   {%- endfor %}
-  </table>
+  {%- for stg in range(stage, event['stageCount'] | int) %}
+      <td>&nbsp;</td>
+      <td>&nbsp;</td>
+  {%- endfor %}
+      <td>{% if res.notcompeting %}MS{% else %}&nbsp;{% endif %}</td>
+		</tr>
 {%- endfor %}
+	</table>
   <p class="timestamp"><span class="timestamp">Vygenerováno: {{ curtime.strftime('%d. %m. %Y, %H:%M:%S') }}</span></p>
+  <hr>
+  <p>
+    <a href="../index.html">Zpět</a>
+  </p>
 </body></html>

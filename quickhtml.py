@@ -77,18 +77,15 @@ def main():
 
     args = parser.parse_args()
     args.verbose -= args.quiet
-    mode = []
     main_index = args.main_index
     show_hours = not args.show_no_hours
     if args.mode == None or 'a' in args.mode:
-        mode.append('s')
-        mode.append('r')
+        mode = ['s', 'r']
         main_index = True
         if 'a' in args.mode:
             mode.append('t')
     else:
         mode = args.mode
-
 
 # Connect to database
     try:
@@ -110,15 +107,14 @@ def main():
         return
 
 
-# Initialize DB connection
+# Initialize DB cursor
     cur = dbcon.cursor()
-
     if is_bigdb:
         cur.execute(f"SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname={plc}",
                     (args.event,))
         if cur.fetchone()[0] != 1:
-            print(f"Schema {args.event} doesn't exist.")
-            sys.exit(1)
+            print(f"Event {args.event} cannot be found in database.")
+            return
         cur.execute("SET SCHEMA %s", (args.event,))
 
 # Initialize Jinja templates
@@ -134,7 +130,8 @@ def main():
             sys.exit(1)
 
 
-# Main loop
+# Main loop generating HTML reports. When stage is not specified, it can dynamically change
+# according to current stage in database (manipulated via QuickEvent program)
     while True:
 # Read event data
         cur.execute("SELECT ckey, cvalue FROM config WHERE ckey LIKE 'event.%'")

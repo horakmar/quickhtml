@@ -142,10 +142,11 @@ def main():
         for i in cur:
             (_, field) = i[0].split('.', 2)
             event[field] = i[1]
+
         if args.stage > 0:
             stage = min(args.stage, int(event['stageCount']))
         else:
-            stage = int(event['currentStageId'])
+            stage = int(event.get('currentStageId', event['stageCount']))
         outdir = args.html_dir.joinpath(f'E{stage}')
         try:
             outdir.joinpath('results').mkdir(parents=True, exist_ok=True)

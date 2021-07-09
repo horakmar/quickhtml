@@ -64,7 +64,7 @@ def main():
     parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
     parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=0)
 
-    parser.add_argument("-m", "--mode", help="Output mode (results|starts|total)", choices=modes, action='append')
+    parser.add_argument("-m", "--mode", help="Output mode {results|starts|total|all}", choices=modes, action='append')
     parser.add_argument("--main-index", help="Create main index file [Automatically on in 'all' mode]", action='store_true')
 
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
@@ -93,19 +93,21 @@ def main():
 # Connect to database
     try:
         if args.sql_driver == "psql":
-            from psycopg2 import connect
+            from psycopg2 import connect, OperationalError
             dbcon = connect(host=args.sql_server, database=args.sql_database, user=args.user, password=args.password)
             is_bigdb = True
             plc = "%s"
         else:
-            from sqlite3 import connect
+            from sqlite3 import connect, OperationalError
+            if not os.path.isfile(args.event):
+                raise OperationalError("DB does not exist.")
             dbcon = connect(database=args.event)
             is_bigdb = False
             plc = "?"
 
     except OperationalError:
         print("Cannot connect to database.")
-        sys.exit(1)
+        return
 
 
 # Initialize DB connection

@@ -87,13 +87,13 @@
   <tr class="sep"><td colspan="{{ 5 + event['stageCount'] | int * 2 }}"></td></tr>
   {%- endif %}
 		<tr class="{{ loop.cycle('odd', 'even') }}">
-      <td>{% if res.racestat == 0 %}{{ loop.index }}{% else %}&nbsp;{% endif %}</td>
+      <td>{% if res.stat == 0 %}{{ loop.index }}{% else %}&nbsp;{% endif %}</td>
       <td>{{ res.fullname }}</td>
       <td>{{ res.registration }}</td>
       <td align="right">{% if res.stat == 0 %}{{ res.totaltime | timefmt(True) }}{% else %}&nbsp;{% endif %}</td>
-  {%- for stg in range(0, stage) %}
-      <td align="right">{{ result(res.stages[stg].stat, res.stages[stg].time, True) }}</td>
-      <td align="right">{{ rank(res.stages[stg].stat, res.notcompeting, res.stages[stg].rank) }}</td>
+  {%- for stg in res.stages %}
+      <td align="right">{{ result(stg.stat, stg.time, True) }}</td>
+      <td align="right">{{ rank(stg.stat, res.notcompeting, stg.rank) }}</td>
   {%- endfor %}
   {%- for stg in range(stage, event['stageCount'] | int) %}
       <td>&nbsp;</td>

@@ -243,10 +243,10 @@ ORDER BY
                 for i in sorted(totals.values(), key=lambda x: (x[4], x[3], x[2])):
                     stages = []
                     for j in range(1, stage+1):
-                        rank = '--'
-                        time = '--'
+                        rank = 0
+                        time = 0
                         if i[j+4][1] == 0:
-                            time = timefmt(i[j+4][0], show_hours)
+                            time = i[j+4][0]
                             if not i[4]:
                                 rank = i[j+4][2]
                         elif i[j+4][1] == 1:
@@ -256,15 +256,16 @@ ORDER BY
                         elif i[j+4][1] == 3:
                             time = 'NEDO'
                         stages.append({
-                            'time': time,
-                            'rank': rank
+                            'time': i[j+4][0],
+                            'rank': i[j+4][2],
+                            'stat': i[j+4][1]
                         })
 
                     results.append({
                             'registration': i[0],
                             'fullname': i[1],
                             'totaltime': i[2],
-                            'racestat': i[3],
+                            'stat': i[3],
                             'notcompeting': i[4],
                             'stages': stages
                     })

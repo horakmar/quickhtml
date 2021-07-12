@@ -64,7 +64,7 @@
 		</tr>
 {%- for comp in competitors %}
 		<tr class="{{ loop.cycle('odd', 'even') }}">
-      <td>{{ comp.starttime }}</td>
+      <td>{{ comp.starttime | timefmt }}</td>
       <td>{{ comp.fullname }}</td>
       <td>{{ comp.registration }}</td>
       <td align="right">{{ comp.siid }}</td>

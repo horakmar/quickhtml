@@ -67,7 +67,7 @@
       <td>{{ loop.index }}</td>
       <td>{{ res.fullname }}</td>
       <td>{{ res.registration }}</td>
-      <td align="right">{{ res.time }}</td>
+      <td align="right">{{ res.time | timefmt(True) }}</td>
       <td>{% if res.notcompeting %}MS{% if res.disq %}, DISK{% endif %}{% endif %}{% if res.disq %}DISK{% endif %}</td>
 		</tr>
 {%- endfor %}

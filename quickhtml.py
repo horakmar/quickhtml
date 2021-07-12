@@ -119,6 +119,7 @@ def main():
 
 # Initialize Jinja templates
     env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
+    env.filters['timefmt'] = timefmt
 
 # Create dir for total results
     if 't' in mode:
@@ -262,7 +263,7 @@ ORDER BY
                     results.append({
                             'registration': i[0],
                             'fullname': i[1],
-                            'totaltime': timefmt(i[2], show_hours),
+                            'totaltime': i[2],
                             'racestat': i[3],
                             'notcompeting': i[4],
                             'stages': stages
@@ -287,11 +288,11 @@ ORDER BY
                         'siid': i[4],
                         'leg': i[5],
                         'relayid': i[6],
-                        'checktime': timefmt(i[7], show_hours),
-                        'starttime': timefmt(i[8], show_hours),
-                        'finishtime': timefmt(i[9], show_hours),
-                        'penaltytime': timefmt(i[10], show_hours),
-                        'time': timefmt(i[11], show_hours),
+                        'checktime': i[7],
+                        'starttime': i[8],
+                        'finishtime': i[9],
+                        'penaltytime': i[10],
+                        'time': i[11],
                         'notcompeting': i[12],
                         'disq': i[13],
                         'mispunch': i[14],
@@ -323,7 +324,7 @@ ORDER BY
                         'siid': i[4],
                         'leg': i[5],
                         'relayid': i[6],
-                        'starttime': timefmt(i[7], show_hours),
+                        'starttime': i[7],
                         'notcompeting': i[8],
                     })
                 tmpl_class = env.get_template("startlists/class.html")

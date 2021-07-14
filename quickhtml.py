@@ -25,12 +25,12 @@ trans = str.maketrans(tr1, tr2)
 
 ## Functions ## ============================
 ############### ============================
-def timefmt(milisecs, show_hours=False):
+def timefmt(milisecs, print_hours=False):
     '''Format time in MS to [H]:MM:SS'''
     if milisecs == None:
         return '--'
     secs = int(milisecs / 1000)
-    if show_hours:
+    if print_hours:
         hours = secs // 3600
     else:
         hours = 0
@@ -70,15 +70,12 @@ def main():
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
     parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
 
-    parser.add_argument("-H", "--show-no-hours", help="Format results as MMM:SS [default H:MM:SS]", action='store_true')
-
     parser.add_argument("-v", "--verbose", help="More information", action="count", default=1)
     parser.add_argument("-q", "--quiet", help="Less information", action="count", default=0)
 
     args = parser.parse_args()
     args.verbose -= args.quiet
     main_index = args.main_index
-    show_hours = not args.show_no_hours
     if args.mode == None or 'a' in args.mode:
         mode = ['s', 'r']
         main_index = True
@@ -145,12 +142,12 @@ def main():
             stage = min(args.stage, int(event['stageCount']))
         else:
             stage = int(event.get('currentStageId', event['stageCount']))
-        outdir = args.html_dir.joinpath(f'E{stage}')
+        outdir_stage = args.html_dir.joinpath(f'E{stage}')
         try:
-            outdir.joinpath('results').mkdir(parents=True, exist_ok=True)
-            outdir.joinpath('starts').mkdir(parents=True, exist_ok=True)
+            outdir_stage.joinpath('results').mkdir(parents=True, exist_ok=True)
+            outdir_stage.joinpath('starts').mkdir(parents=True, exist_ok=True)
         except OSError:
-            print(f"Cannot create output directories ({outdir})")
+            print(f"Cannot create output directories ({outdir_stage})")
             sys.exit(1)
 
 # Read classes list
@@ -161,16 +158,18 @@ def main():
 
 # Generate main index file
         if main_index:
+            tmpl_index = env.get_template("main_index.html")
+            tmpl_index.stream({'link_totals': 't' in mode, 'classes': classes, 'event': event, 'stage': stage}).dump(f'{args.html_dir}/index.html')
             tmpl_index = env.get_template("index.html")
-            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/index.html')
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_stage}/index.html')
 
 # Generate separate index files
         if 'r' in mode:
             tmpl_index = env.get_template("results/index.html")
-            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/results/index.html')
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_stage}/results/index.html')
         if 's' in mode:
             tmpl_index = env.get_template("startlists/index.html")
-            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir}/starts/index.html')
+            tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_stage}/starts/index.html')
         if 't' in mode:
             tmpl_index = env.get_template("total/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_total}/index.html')
@@ -302,7 +301,7 @@ ORDER BY
 
                 filename = cls['ascii']
                 tmpl_class = env.get_template("results/class.html")
-                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'curtime': datetime.now()}).dump(f'{outdir}/results/{filename}.html')
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'curtime': datetime.now()}).dump(f'{outdir_stage}/results/{filename}.html')
 
 # Read startlists
             if 's' in mode:
@@ -329,7 +328,7 @@ ORDER BY
                         'notcompeting': i[8],
                     })
                 tmpl_class = env.get_template("startlists/class.html")
-                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'start_dt': start_dt, 'curtime': datetime.now()}).dump(f'{outdir}/starts/{filename}.html')
+                tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'start_dt': start_dt, 'curtime': datetime.now()}).dump(f'{outdir_stage}/starts/{filename}.html')
 
         print("Generated.")
         if args.refresh_interval == 0:

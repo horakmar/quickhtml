@@ -1,6 +1,6 @@
 # QuickHTML
 
-Generator of HTML exports for [QuickEvent/QuickBox](//Quick-Event/quickbox).
+Generator of HTML exports for [QuickEvent/QuickBox](https://github.com/Quick-Event/quickbox).
 
 ### Features
 
@@ -10,7 +10,7 @@ Generator of HTML exports for [QuickEvent/QuickBox](//Quick-Event/quickbox).
 
 ### Description
 
-QuickHTML is meant as an addon for [QuickEvent/QuickBox](//Quick-Event/quickbox). It generates various HTML reports
+QuickHTML is meant as an addon for [QuickEvent/QuickBox](https://github.com/Quick-Event/quickbox). It generates various HTML reports
 from QuickBox database (PostgreSQL or SQLite).
 
 Typical use is to generate HTML reports for orienteering event which are then published by separate WWW server

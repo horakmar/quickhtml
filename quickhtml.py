@@ -11,13 +11,14 @@
 ############################################
 import argparse
 import pathlib
+import logging
 import sys, os, time
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 ## Constants ## ==========================
 ############### ==========================
-# Translate national characters to ASCII for file names.
+# Translate UTF-8 national characters to ASCII for file names.
 tr1 = 'áčďéěíňóřšťůúýžľĺÁČĎÉĚÍŇÓŘŠŤŮÚÝŽĽĹ'
 tr2 = 'acdeeinorstuuyzllacdeeinorstuuyzll'
 trans = str.maketrans(tr1, tr2)
@@ -70,11 +71,12 @@ def main():
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
     parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
 
-    parser.add_argument("-v", "--verbose", help="More information", action="count", default=1)
+    parser.add_argument("-l", "--log-file", help="Log activity into file", default=None)
+
+    parser.add_argument("-v", "--verbose", help="More information", action="count", default=0)
     parser.add_argument("-q", "--quiet", help="Less information", action="count", default=0)
 
     args = parser.parse_args()
-    args.verbose -= args.quiet
     main_index = args.main_index
     if args.mode == None or 'a' in args.mode:
         mode = ['s', 'r']
@@ -83,6 +85,19 @@ def main():
             mode.append('t')
     else:
         mode = args.mode
+
+# Set proper loglevel
+    args.verbose -= args.quiet
+    loglevel = 30 - 10 * args.verbose
+    if loglevel < 10:
+        loglevel = 10
+    elif loglevel > 50:
+        loglevel = 50
+
+    logging.basicConfig(level=loglevel, filename=args.log_file, format='{asctime}: {levelname}: {message}', style='{', datefmt='%d.%m.%Y,%H:%M:%S')
+
+    if args.log_file != None:
+        print(f"Logging to {args.log_file}.", file=sys.stderr)
 
 # Connect to database
     try:
@@ -100,7 +115,7 @@ def main():
             plc = "?"
 
     except OperationalError:
-        print("Cannot connect to database.")
+        logging.critical("Cannot connect to database.")
         return
 
 
@@ -110,9 +125,10 @@ def main():
         cur.execute(f"SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname={plc}",
                     (args.event,))
         if cur.fetchone()[0] != 1:
-            print(f"Event {args.event} cannot be found in database.")
+            logging.critical(f"Event {args.event} cannot be found in database.")
             return
         cur.execute("SET SCHEMA %s", (args.event,))
+        logging.info(f'Using "big" database, schema {args.event}')
 
 # Initialize Jinja templates
     env = Environment(loader=FileSystemLoader('templates'), autoescape=select_autoescape())
@@ -124,7 +140,7 @@ def main():
         try:
             outdir_total.mkdir(parents=True, exist_ok=True)
         except OSError:
-            print(f"Cannot create output directories ({outdir})")
+            logging.critical(f"Cannot create output directories ({outdir})")
             sys.exit(1)
 
 
@@ -147,7 +163,7 @@ def main():
             outdir_stage.joinpath('results').mkdir(parents=True, exist_ok=True)
             outdir_stage.joinpath('starts').mkdir(parents=True, exist_ok=True)
         except OSError:
-            print(f"Cannot create output directories ({outdir_stage})")
+            logging.critical(f"Cannot create output directories ({outdir_stage})")
             sys.exit(1)
 
 # Read classes list
@@ -160,19 +176,24 @@ def main():
         if main_index:
             tmpl_index = env.get_template("main_index.html")
             tmpl_index.stream({'link_totals': 't' in mode, 'classes': classes, 'event': event, 'stage': stage}).dump(f'{args.html_dir}/index.html')
+            logging.info(f'Written main index -> {args.html_dir}/index.html')
             tmpl_index = env.get_template("index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_stage}/index.html')
+            logging.info(f'Written stage index -> {outdir_stage}/index.html')
 
 # Generate separate index files
         if 'r' in mode:
             tmpl_index = env.get_template("results/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_stage}/results/index.html')
+            logging.info(f'Written results index -> {outdir_stage}/results/index.html')
         if 's' in mode:
             tmpl_index = env.get_template("startlists/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_stage}/starts/index.html')
+            logging.info(f'Written results index -> {outdir_stage}/starts/index.html')
         if 't' in mode:
             tmpl_index = env.get_template("total/index.html")
             tmpl_index.stream({'classes': classes, 'event': event, 'stage': stage}).dump(f'{outdir_total}/index.html')
+            logging.info(f'Written totals index -> {outdir_total}/index.html')
 
 # Classes loop
         for cls in classes:
@@ -242,18 +263,6 @@ ORDER BY
                 for i in sorted(totals.values(), key=lambda x: (x[4], x[3], x[2])):
                     stages = []
                     for j in range(1, stage+1):
-                        rank = 0
-                        time = 0
-                        if i[j+4][1] == 0:
-                            time = i[j+4][0]
-                            if not i[4]:
-                                rank = i[j+4][2]
-                        elif i[j+4][1] == 1:
-                            time = 'DISK'
-                        elif i[j+4][1] == 2:
-                            time = 'NEST'
-                        elif i[j+4][1] == 3:
-                            time = 'NEDO'
                         stages.append({
                             'time': i[j+4][0],
                             'rank': i[j+4][2],
@@ -272,6 +281,7 @@ ORDER BY
                 filename = cls['ascii']
                 tmpl_class = env.get_template("total/class.html")
                 tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'results': results, 'curtime': datetime.now()}).dump(f'{outdir_total}/{filename}.html')
+                logging.info(f'Written total results -> {outdir_total}/{filename}.html')
 
 # Read results
             if 'r' in mode:
@@ -302,6 +312,7 @@ ORDER BY
                 filename = cls['ascii']
                 tmpl_class = env.get_template("results/class.html")
                 tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'curtime': datetime.now()}).dump(f'{outdir_stage}/results/{filename}.html')
+                logging.info(f'Written results -> {outdir_stage}/results/{filename}.html')
 
 # Read startlists
             if 's' in mode:
@@ -329,8 +340,9 @@ ORDER BY
                     })
                 tmpl_class = env.get_template("startlists/class.html")
                 tmpl_class.stream({'classes': classes, 'cls': cls, 'event': event, 'stage': stage, 'competitors': competitors, 'start_dt': start_dt, 'curtime': datetime.now()}).dump(f'{outdir_stage}/starts/{filename}.html')
+                logging.info(f'Written startlists -> {outdir_stage}/starts/{filename}.html')
 
-        print("Generated.")
+        logging.info("Writing HTML files completed.")
         if args.refresh_interval == 0:
             break
         time.sleep(args.refresh_interval)

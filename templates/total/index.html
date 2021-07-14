@@ -8,9 +8,7 @@
     body {font-family: sans-serif}
     h1, h2, h3, h4, h5 {
       color: #2d2d2d;
-      //font-family: sans-serif;
-      //font-size: 100%;
-      //font-weight: normal;
+      font-family: sans-serif;
       clear: left;
     }
     h1 {font-size: 220%; font-weight: bold;}
@@ -33,48 +31,24 @@
     .bbb { border-bottom: 2px solid black; }
     .blb { border-left: 2px solid black; }
     .brb { border-right: 2px solid black; }
-    p.timestamp { font-size: 80%; padding-top: 1ex; }
-    span.timestamp { background-color: #99ccff }
     table { border: 0px solid gray; border-spacing: 0px 0px;}
     tr.odd { background-color: #e6e6e6; }
     th { padding: 3px; border: 0px; background-color: #8dd35f; }
     td { padding: 3px; border: 0px; }
   </style>
 </head>
-
 <body>
-  <h1>Celkové výsledky</h1>
+  <h1>Celkové výsledky po E{{ stage }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
+  <p>
 {%- for cls in classes %}
+<a href="{{ cls.ascii }}.html">{{ cls.name }}</a>{% if not loop.last %} | {% endif %}
+{%- endfor %}  
+  </p>
   <hr>
-  <h1>Kategorie {{ cls.name }}</h1>
-	<table>
-		<tr>
-			<th>Poř</th>
-			<th>Jméno</th>
-			<th>Registrace</th>
-			<th align="right">Celkem</th>
-			<th align="right">E1</th>
-			<th align="right">E2</th>
-      <th align="right">E3</th>
-      <th align="right">E4</th>
-			<th>Status</th>
-		</tr>
-  {%- for res in results[cls.id] %}
-		<tr class="{{ loop.cycle('odd', 'even') }}">
-      <td>{{ loop.index }}</td>
-      <td>{{ res.fullname }}</td>
-      <td>{{ res.registration }}</td>
-      <td align="right">{{ res.total }}</td>
-      <td align="right">{{ res.e1 }}</td>
-      <td align="right">{{ res.e2 }}</td>
-      <td align="right">{{ res.e3 }}</td>
-      <td align="right">{{ res.e4 }}</td>
-      <td>{% if res.notcompeting %}MS{% endif %}</td>
-		</tr>
-  {%- endfor %}
-  </table>
-{%- endfor %}
-  <p class="timestamp"><span class="timestamp">Vygenerováno: {{ curtime.strftime('%d. %m. %Y, %H:%M:%S') }}</span></p>
-</body></html>
+  <p>
+    <a href="../index.html">Zpět</a>
+  </p>
+</body>
+</html>

@@ -19,6 +19,13 @@ Typical use is to generate HTML reports for orienteering event which are then pu
 Program is written in Python and uses Jinja templates for HTML pages layout definition. Only simple, Czech language
 templates are provided so far.
 
+### Dependencies
+
+  * Python 3
+  * Python module jinja2
+  * Python module psycopg2 (if using PostgreSQL DB)
+
+
 ### Usage
 
 See help (-h):
@@ -71,4 +78,4 @@ optional arguments:
     * English templates
     * Other language templates
     * Parameter for language selection
-
+  * Class filter

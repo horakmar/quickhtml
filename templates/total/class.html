@@ -1,50 +1,7 @@
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Celkové výsledky {{ cls.name }}</title>
-  <style type="text/css">
-    body {font-family: sans-serif}
-    h1, h2, h3, h4, h5 {
-      color: #2d2d2d;
-      //font-family: sans-serif;
-      //font-size: 100%;
-      //font-weight: normal;
-      clear: left;
-    }
-    h1 {font-size: 220%; font-weight: bold;}
-    h2 {font-size: 150%; font-weight: bold; border-bottom: 1px  dotted #666 ;}
-    h3 {font-size: 120%;  }
-    .text {text-align:left}
-    .code {background-color: lightgray; text-align:left}
-
-    .nowrap { white-space: nowrap; }
-    .right { text-align: right; }
-    .red { color: red; }
-    .blue { color: blue; }
-    .green { color: green; }
-    .bold { font-weight: bold; }
-    .bt { border-top: 1px solid gray; }
-    .bb { border-bottom: 1px solid gray; }
-    .bl { border-left: 1px solid gray; }
-    .br { border-right: 1px solid gray; }
-    .btb { border-top: 2px solid black; }
-    .bbb { border-bottom: 2px solid black; }
-    .blb { border-left: 2px solid black; }
-    .brb { border-right: 2px solid black; }
-    p.timestamp { font-size: 80%; padding-top: 1ex; }
-    span.timestamp { background-color: #99ccff }
-    table { border: 1px solid gray; border-collapse: collapse; width: 100%;}
-    tr.odd { background-color: #e6e6e6; }
-    tr.sep { background-color: #f5da81; }
-    th { padding: 3px; border: 1px solid gray; background-color: #8dd35f;}
-    td { padding: 3px; border: 1px solid gray; }
-  </style>
-</head>
-
-<body>
-  <h1>Celkové výsledky {{ cls.name }}</h1>
+{% extends "base.html" %}
+{% block title %}Celkové výsledky {{ cls.name }}{% endblock %}
+{% block body %}
+  <h1>{{ self.title() }}</h1>
   <h2>{{ event.name }}</h2>
   <h3>{{ event.place }}</h3>
 	<p>
@@ -87,7 +44,7 @@
   <tr class="sep"><td colspan="{{ 5 + event['stageCount'] | int * 2 }}"></td></tr>
   {%- endif %}
 		<tr class="{{ loop.cycle('odd', 'even') }}">
-      <td>{% if res.stat == 0 %}{{ loop.index }}{% else %}&nbsp;{% endif %}</td>
+      <td>{{ rank(res.stat, res.notcompeting, loop.index) }}</td>
       <td>{{ res.fullname }}</td>
       <td>{{ res.registration }}</td>
       <td align="right">{% if res.stat == 0 %}{{ res.totaltime | timefmt(True) }}{% else %}&nbsp;{% endif %}</td>
@@ -108,4 +65,4 @@
   <p>
     <a href="index.html">Zpět</a>
   </p>
-</body></html>
+{% endblock %}

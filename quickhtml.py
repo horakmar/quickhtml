@@ -65,11 +65,11 @@ def main():
     parser.add_argument("-b", "--sql-database", help="Database name [quickevent]", default="quickevent")
     parser.add_argument("-n", "--stage", help="Stage number [1]", type=int, default=0)
 
-    parser.add_argument("-m", "--mode", help="Output mode {results|starts|total|all}", choices=modes, action='append')
+    parser.add_argument("-m", "--mode", help="Output mode {results|starts|total|all} [r,s]", choices=modes, action='append')
     parser.add_argument("--main-index", help="Create main index file [Automatically on in 'all' mode]", action='store_true')
 
     parser.add_argument("-d", "--html-dir", help="Directory where HTML pages will be stored [./html]", type=pathlib.Path, default="./html")
-    parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]", type=int, default=60)
+    parser.add_argument("-r", "--refresh-interval", help="Refresh time interval in seconds [60]; 0 = once and exit", type=int, default=60)
 
     parser.add_argument("-l", "--log-file", help="Log activity into file", default=None)
 

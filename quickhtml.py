@@ -5,8 +5,8 @@
 #  Generate HTML results from Jinja2 template
 #
 #  Author: Martin Horak
-#  Version: 1.0
-#  Date: 22. 6. 2021
+#  Version: 1.1
+#  Date: 14. 7. 2021
 #
 ############################################
 import argparse
@@ -355,28 +355,3 @@ if __name__ == '__main__':
 
 ## End of program # =========================
 ################### =========================
-
-# SELECT comp.registration, COALESCE(comp.lastName, '') || ' ' || COALESCE(comp.firstName, '') AS fullName,
-  # CASE WHEN e1.disqualified THEN NULL ELSE e1.timems END AS t1,
-  # concat_ws(', ', CASE WHEN e1.notcompeting THEN 'MS' END, CASE WHEN NOT e1.isrunning THEN 'DNS' END, CASE WHEN e1.disqualified THEN 'DISK' END) AS e1stat,
-  # CASE WHEN e2.disqualified THEN NULL ELSE e2.timems END AS t2,
-  # concat_ws(', ', CASE WHEN e2.notcompeting THEN 'MS' END, CASE WHEN NOT e2.isrunning THEN 'DNS' END, CASE WHEN e2.disqualified THEN 'DISK' END) AS e2stat,
-  # CASE WHEN e1.disqualified OR e2.disqualified THEN NULL
-  # ELSE e1.timems + e2.timems END
-  # AS total,
-  # e1.notcompeting OR e2.notcompeting AS notcompeting
-# FROM
-  # competitors AS comp,
-  # runs AS e1, runs AS e2
-# WHERE
-  # comp.classid = 131942 AND
-  # e1.competitorid = comp.id AND
-  # e2.competitorid = comp.id AND
-  # e1.stageid=1 AND e2.stageid=2
-# ORDER BY
-  # notcompeting, total
-
-
-# SELECT classes.name AS classes__name, courses.length AS courses__length, courses.climb AS courses__climb FROM classes LEFT JOIN classdefs ON classdefs.classId=classes.id AND (classdefs.stageId=1) LEFT JOIN courses ON courses.id=classdefs.courseId WHERE (classes.id=124208)
-
-# SELECT competitors.registration AS competitors__registration, competitors.lastName AS competitors__lastName, competitors.firstName AS competitors__firstName, COALESCE(competitors.lastName, '') || ' ' || COALESCE(competitors.firstName, '') AS competitorName, runs.id AS runs__id, runs.competitorid AS runs__competitorid, runs.siid AS runs__siid, runs.stageid AS runs__stageid, runs.leg AS runs__leg, runs.relayid AS runs__relayid, runs.checktimems AS runs__checktimems, runs.starttimems AS runs__starttimems, runs.finishtimems AS runs__finishtimems, runs.penaltytimems AS runs__penaltytimems, runs.timems AS runs__timems, runs.isrunning AS runs__isrunning, runs.notcompeting AS runs__notcompeting, runs.disqualified AS runs__disqualified, runs.mispunch AS runs__mispunch, runs.badcheck AS runs__badcheck, runs.cardlent AS runs__cardlent, runs.cardreturned AS runs__cardreturned, runs.importid AS runs__importid FROM competitors JOIN runs ON runs.competitorId=competitors.id AND (runs.stageId=1 AND runs.isRunning AND runs.finishTimeMs>0) WHERE (competitors.classId=124211) ORDER BY runs.notCompeting, runs.disqualified, runs.timeMs
